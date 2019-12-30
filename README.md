@@ -1,4 +1,4 @@
-# KorBERT로 할 수 있는 projects :)
+# ETRI KorBERT projects:)
 Let's use Korean BERT easily :)
 
 ### 개발 환경
@@ -9,10 +9,17 @@ Let's use Korean BERT easily :)
   - python 3.6
   - Tensorflow 1.15.0
 - 집 PC
-  - Windows 10
+  - Windows 10, Ubunto (Dual Booting)
   - AMD 3600x
   - RTX 2070 super
   - python 3.6
+  - Tensorflow 1.15.0
+ 
+- Notebook
+  - 삼성전자 게이밍노트북 2019 오디세이 NT850XBC-X719A
+  - Window 10
+  - 9세대 i7
+  - RTX 2060
   - Tensorflow 1.15.0
 
 ### 자료부터 모으자!
