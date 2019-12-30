@@ -1,8 +1,14 @@
-# ETRI KorBERT 한국어 embedding 사용하기 및 적용 예시
+# ETRI KorBERT 한국어 embedding 사용하기 및 적용 예시 :)
 2주 동안 source code 하나하나 뜯어가며 삽질한 노고를 기록하고 BERT에서 해당 코드가 어떠한 역할을 하는지 논문과 비교하며 설명!
+
+ETRI KorBERT로 이미 많은 분들이 활용하고 계시지만 친절하게 코드 하나하나 어떻게 해야한다는 연습 예제는 없더라!
+
+내가 공부한 내용을 공유하며 차근차근 예시 문제를 풀며 한국어 형태소 분석을 기반으로 하는 BERT를 활용하는 것이 이 repo의 목적이다!
 
 ### Requirements
 - Tensorflow 1.15.0
+  - `huggingface`의 pytorch transformer 모델과 `google research`의 tensorflow 모델 둘 다 지원하지만
+  - 저는 google research의 `tensorflow` 버전을 활용하고 버전은 2.0 이전 버전 중 가장 최신 버전인 1.15.0 사용
 - ETRI에서 제공하는 model ckpt(checkpoint)와 vocab list
   - 이는 저작권 상 Git에 올릴 수 없으니 **아래 ETRI 홈페이지에서 직접 openapi를 활용하여 받도록 한다.**
   - [ETRI 학습 모델 및 데이터 제공](http://aiopen.etri.re.kr/service_dataset.php)
@@ -18,9 +24,24 @@
   - [한국정보통신기술협회(Telecommuication Technology Association, TTA) 형태소 태그셋](http://aiopen.etri.re.kr/data/001.형태소분석_가이드라인.pdf)
   - 이를 만족하는 형태소 분석기는 카카오 팀의 `khaiii`와 `ETRI`에서 제공하는 형태소 분석기가 존재한다.
     - `konlpy.tag.Komoran`도 가능한지는 살펴봐야겠다. 형태소 분석 성능 면에서는 `ETRI`에서 제공하는 형태소 분석기가 더 좋았다.
-    - `khaiii`는 Window 환경에서 사용 불가능하다. Docker로 하는 방법밖에는 없다.
+    - `khaiii`는 Window 환경에서 사용 불가능하다. Docker로 하는 방법 밖에는 없다.
     - [khaiii docker 파일](https://github.com/kakao/khaiii/tree/master/docker)
     - [Docker를 활용한 khaiii 설치수난기](https://medium.com/@saerombang11/docker를-활용한-khaiii-설치수난기-53d014f9eb58)
+- Python 3.7
+- 그 외 python library
+  - `six, numpy, scikit-learn, urllib3, urllib, pandas, konlpy, chatspace, pytorch`
+  
+### Example DataSets
+- [Dacon 금융문자 분석 경진대회](https://dacon.io/cpt14)
+  - KB 금융그룹에서 제공한 금융문자가 스미싱인지 vs 아닌지 이진분류를 수행하는 task
+  - 한국어 text 20만 건 이상 존재하고 있음
+
+- [Naver Sentiment Movie Corpus](https://github.com/e9t/nsmc)
+  - 73만 건의 naver movie reviews 데이터를 크롤링한 데이터
+  - rating 기반으로 긍/부정의 극성 분류를 시도
+  
+- [AI Hub DataSets](http://www.aihub.or.kr/)
+  - 적용 예정
 
 ### Appendix
 - TTAK.KO-11.0010/R1
