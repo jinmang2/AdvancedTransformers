@@ -1329,13 +1329,17 @@ def whitespace_tokenize(text):
     tokens = text.split() # 공백 단위로 쪼갠 list를 반환
     return tokens
 
-def do_lang(openapi_key, text ) :
+def do_lang(openapi_key, text) :
     openApiURL = "http://aiopen.etri.re.kr:8000/WiseNLU"
 	 
-    requestJson = { "access_key": openapi_key, "argument": { "text": text, "analysis_code": "morp" } }
+    requestJson = {"access_key": openapi_key, 
+                   "argument": {"text": text, "analysis_code": "morp"}}
 	 
     http = urllib3.PoolManager()
-    response = http.request( "POST", openApiURL, headers={"Content-Type": "application/json; charset=UTF-8"}, body=json.dumps(requestJson))
+    response = http.request("POST", openApiURL, 
+                            headers={
+                                "Content-Type": "application/json; charset=UTF-8"
+                            }, body=json.dumps(requestJson))
     
     json_data = json.loads(response.data.decode('utf-8'))
     json_result = json_data["result"]
@@ -1356,7 +1360,7 @@ def do_lang(openapi_key, text ) :
         json_sentence = json_return_obj["sentence"]
         for json_morp in json_sentence:                        
             for morp in json_morp["morp"]:
-                return_result = return_result+str(morp["lemma"])+"/"+str(morp["type"])+" "
+                return_result = return_result + str(morp["lemma"]) + "/" + str(morp["type"]) + " "
 
         return return_result
     
@@ -1367,6 +1371,7 @@ def file_based_convert_examples_to_features(examples,
                                             openapi_key,
                                             output_file):
     writer = tf.python_io.TFRecordWriter(output_file)
+    komoran = Komoran()
     for (ex_index, example) in enumerate(examples):
         if ex_index % 10000 == 0:
             tf.logging.info("Writing example %d of %d" % 
@@ -1375,7 +1380,8 @@ def file_based_convert_examples_to_features(examples,
                                          label_list,
                                          max_seq_length,
                                          tokenizer,
-                                         openapi_key)
+                                         openapi_key,
+                                         komoran=komoran)
         
         def create_int_feature(values):
             f = tf.train.Feature(int64_list=tf.train.Int64List(value=list(values)))
@@ -1396,7 +1402,8 @@ def convert_single_example(ex_index, example,
                            label_list,
                            max_seq_length,
                            tokenizer,
-                           openapi_key):
+                           openapi_key,
+                           komoran=None):
     if isinstance(example, PaddingInputExample):
         return InputFeatures(
             input_ids=[0] * max_seq_length,
@@ -1407,12 +1414,14 @@ def convert_single_example(ex_index, example,
     
     label_map = {label : i for (i, label) in enumerate(label_list)}
     
-    tokens_a = do_lang(openapi_key, example.text_a)
-    if "openapi error" in tokens_a:
-        tf.logging.info("(%d--%s)" % (ex_index, tokens_a))
+    if openapi_key is None:
         tokens_a = ' '.join(
             [i[0] + '/' + i[1]
-             for i in Komoran().pos(example.text_a)])
+             for i in komoran.pos(example.text_a)])
+    else:
+        tokens_a = do_lang(openapi_key, example.text_a)
+#     if "openapi error" in tokens_a:
+#         tf.logging.info("(%d--%s)" % (ex_index, tokens_a))
     tokens_a = tokenizer.tokenize(tokens_a)
 
     if example.text_b:
@@ -1503,3 +1512,50 @@ def convert_single_example(ex_index, example,
         is_real_example=True)
 
     return feature
+
+def file_based_input_fn_builder(input_file, seq_length, is_training,
+                                drop_remainder, use_tpu=False):
+    """Creates an 'input_fn' closure to be passed to TPUEstimator."""
+    
+    name_to_features = {
+        'input_ids': tf.FixedLenFeature([seq_length], tf.int64),
+        'input_mask': tf.FixedLenFeature([seq_length], tf.int64),
+        'segment_ids': tf.FixedLenFeature([seq_length], tf.int64),
+        'label_ids': tf.FixedLenFeature([], tf.int64),
+        'is_real_example': tf.FixedLenFeature([], tf.int64),
+    }
+    
+    def _decode_record(record, name_to_features, use_tpu=use_tpu):
+        example = tf.parse_single_example(record, name_to_features)
+        
+        # tf.Example only supports tf.int64, but the TPU only supports tf.int32.
+        # So cast all int64 to int32.
+        # But in this time, we use GPU.
+        if use_tpu:
+            for name in list(example.keys()):
+                t = example[name]
+                if t.dtype == tf.int64:
+                    t = tf.to_int32(t)
+                example[name] = t
+        
+        return example
+    
+    def input_fn(params):
+        batch_size = params['batch_size']
+        
+        # For training, we want to lot of parallel reading and shuffling.
+        # For eval, we want no shuffling and parallel reading doesn't matter.
+        d = tf.data.TFRecordDataset(input_file)
+        if is_training:
+            d = d.repeat()
+            d = d.shuffle(buffer_size=100)
+            
+        d = d.apply(
+            tf.contrib.data.map_and_batch(
+                lambda record: _decode_record(record, name_to_features),
+                batch_size=batch_size,
+                drop_remainder=drop_remainder))
+        
+        return d
+    
+    return input_fn
