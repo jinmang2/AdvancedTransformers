@@ -30,7 +30,7 @@ class BertConfig(object):
         self.intermediate_size = intermediate_size
         self.hidden_dropout_prob = hidden_dropout_prob # hidden layer의 dropout 비율
         self.attention_probs_dropout_prob = attention_probs_dropout_prob # attention layer의 dropout 비율
-        self.max_position_embeddings = max_position_embeddings
+        self.max_position_embeddings = max_position_embeddings # bert의 position embedding의 max length
         self.type_vocab_size = type_vocab_size
         self.initializer_range = initializer_range
 
@@ -68,10 +68,11 @@ class BertConfig(object):
         return json.dumps(self.to_dict(), indent=indent, sort_keys=True) + "\n"
 
     def __repr__(self):
+        # BERT Configuration
         mem = hex(id(self))
         repr_text = ''
         repr_text += '<BERT CONGIRUATION>\n'
-        repr_text += f'\address: {mem}'
+        repr_text += f'\naddress: {mem}'
         repr_text += '\nparams:'
         repr_text += ''.join(['\n  ' + key + ': ' + str(val)
                               for (key, val) in self.__dict__.items()])
