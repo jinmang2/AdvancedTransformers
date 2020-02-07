@@ -1,3 +1,26 @@
+# coding=utf-8
+# Copyright 2018 The Google AI Language Team Authors and The HugginFace Inc. team.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#	 http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+#
+# 형태소분석 기반 BERT를 위한 Tokenization Class
+# 수정: joonho.lim
+# 일자: 2019-05-23
+#
+# 주석 및 새롭게 코드 수정
+# 작성자: MyungHoon Jin
+
 import collections
 import re
 import unicodedata
@@ -6,6 +29,7 @@ import tensorflow as tf
 
 class BERTTokenizer:
     """End 2 End Tokenizing NLU Embedding!"""
+    # from_pretrained method는 향후 추가!
     def __init__(self, vocab_file, do_lower_case=False, max_len=None):
         # ETRI에서 제공한 vocab file을 읽어오고
         # 역 방향의 사전을 정의한다.
@@ -27,6 +51,7 @@ class BERTTokenizer:
         return split_tokens
 
     def convert_tokens_to_ids(self, tokens):
+        # pytorch implement version
         ids = []
         for token in tokens:
             ids.append(self.vocab[token])
@@ -38,6 +63,7 @@ class BERTTokenizer:
         return ids
 
     def convert_ids_to_tokens(self, ids):
+        # pytorch implement version
         tokens = []
         for i in ids:
             tokens.append(self.ids_to_tokens[i])
@@ -80,21 +106,24 @@ class BasicTokenizer:
                 # tagging되어있고 vocab은 '고객/NNG_'로 단어를 기록하고 있음.
                 # 여기서 `lower` 메서드를 사용하면 뒤의 tagging이 소문자로
                 # 변환되어 값의 비교를 못하게 되므로 이를 주석처리.
-                # 아니면 do_lower_case를 False로 둬도 무방함.
-#                 token.lower()
+
+                # token.lower()
+
+                # 모든 음절을 정준 분해시키는 함수
                 token = self._run_strip_accents(token)
+            # whitespacing이랑 다를게 무엇인지?
             split_tokens.extend(self._run_split_on_punc(token))
         output_tokens = whitespace_tokenize(" ".join(split_tokens))
         return output_tokens
 
-    def _run_strip_accents(self, text):
+    def _run_strip_accents(self, token):
         """Strips accents from a piece of text."""
-        text = unicodedata.normalize("NFD", text)
+        token = unicodedata.normalize("NFD", token)
         # https://gist.github.com/Pusnow/aa865fa21f9557fa58d691a8b79f8a6d
         # 모든 음절을 정준 분해(Canonical Decomposition)시킴
         # '각'을 'ㄱ+ㅏ+ㄱ'으로 저장(출력되는 값은 동일)
         output = []
-        for char in text:
+        for char in token:
             cat = unicodedata.category(char)
             if cat == "Mn":
                 # unicode category가 "Mark, Nonspacing"일 경우 pass
@@ -102,9 +131,9 @@ class BasicTokenizer:
             output.append(char)
         return "".join(output)
 
-    def _run_split_on_punc(self, text):
+    def _run_split_on_punc(self, token):
         """Splits punctuation on a piece of text."""
-        chars = list(text)
+        chars = list(token)
         i, start_new_word = 0, True
         output = []
         while i < len(chars):
@@ -153,6 +182,7 @@ class BasicTokenizer:
         cat = unicodedata.category(char)
         if cat == 'Zs':
             # unicode category가 Space Seperator면 True 반환
+            # https://www.compart.com/en/unicode/category/Zs
             return True
         # 이 외의 경우 전부 False 반환
         return False
@@ -169,6 +199,7 @@ class BasicTokenizer:
             # Cf(format)
             # Co(Private Use, is 0)
             # Cs(Surrrogate, is 0)일 경우, True 반환
+            # https://en.wikipedia.org/wiki/Control_character
             return True
         # 이 외의 경우 전부 False 반환
         return False
