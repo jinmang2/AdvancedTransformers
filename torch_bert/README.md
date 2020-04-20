@@ -6,3 +6,4 @@
 - 아니면 rust code를 python으로 포팅했거나
 - 혹은 tensorflow에서 사용한 version의 코드이거나
 - 아니네 이미 있네! fast version이냐 python이냐 차인가? 살펴보자
+- 추가적인 코드 작성할 필요 있음!! 없는 token!
