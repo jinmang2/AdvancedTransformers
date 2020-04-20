@@ -209,6 +209,7 @@ class SpecialTokenMixin:
         """
         all_toks = []
         set_attr = self.special_tokens_map
+        print(set_attr)
         for attr_value in set_attr.values():
             all_toks = all_toks + (list(attr_value) if isinstance(attr_value, (list, tuple)) else [attr_value])
         all_toks = list(set(all_toks))
@@ -246,7 +247,7 @@ class PretrainedTokenizer(SpecialTokenMixin):
     )
 
     def __init__(self, model_max_length=None, **kwargs):
-        super(PretrainedTokenizer, self).__init__()
+        super(PretrainedTokenizer, self).__init__(**kwargs)
 
         # For backward compatibility we fallback to set model_max_length from max_len if provided
         model_max_length = model_max_length if model_max_length is not None else kwargs.pop("max_len", None)
@@ -291,6 +292,32 @@ class PretrainedTokenizer(SpecialTokenMixin):
     @classmethod
     def from_pretrained(cls, *input, **kwargs):
         return cls._from_pretrained(*input, **kwargs)
+
+    def _convert_token_to_id(self, token):
+    	return self.vocab.get(token, self.vocab.get(self.unk_token))
+
+    def _convert_id_to_token(self, index):
+    	return self.ids_to_tokens.get(index, self.unk_token)
+
+    def convert_tokens_to_string(self, tokens):
+    	out_string = " ".join(tokens).replace(" ##", "").strip()
+    	return out_string
+
+    def convert_tokens_to_ids(self, tokens):
+        if isinstance(tokens, str):
+            return self._convert_token_to_id(tokens)
+        ids = [self._convert_token_to_id(token) for token in tokens]
+        if len(ids) > self.max_len:
+            raise ValueError(
+            "Token indices sequence length is longer than the specified maximum "
+            " sequence length for this BERT model ({} > {}). Running this"
+            " sequence through BERT will result in indexing errors".format(len(ids), self.max_len)
+        )
+        return ids
+
+    def convert_ids_to_tokens(self, ids):
+        tokens = [self._convert_id_to_token(i) for i in ids]
+        return tokens
 
     # ETRI 코드
     @classmethod

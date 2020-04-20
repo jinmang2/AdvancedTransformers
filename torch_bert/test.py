@@ -28,3 +28,4 @@ class BertTest(Test):
 if __name__ == '__main__':
     B = BertTest()
     B.from_pretrained('a')
+    print(5 * [0])
