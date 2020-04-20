@@ -2,12 +2,17 @@
 Let's use Korean BERT easily :)
 
 ### 개발 환경
+- 회사 서버
+  - To be continued...
+  - P100 써봤으면@!
+  
 - 회사 PC
   - Windows 10
   - AMD 3900x
   - RTX 2080 ti
   - python 3.6
   - Tensorflow 1.15.0
+  
 - 집 PC
   - Windows 10, Ubunto (Dual Booting)
   - AMD 3600x
