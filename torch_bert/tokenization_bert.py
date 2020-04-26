@@ -274,7 +274,7 @@ class BertTokenizer(PretrainedTokenizer):
         cls = [self.cls_token_id]
         if token_ids_1 is None:
             return len(cls + token_ids_0 + sep) * [0]
-        return len(cls + token_ids_0 + sep) * [0] + len(token_ids_1 + sep) * [0]
+        return len(cls + token_ids_0 + sep) * [0] + len(token_ids_1 + sep) * [1]
 
     def save_vocabulary(self, vocab_path):
         pass
