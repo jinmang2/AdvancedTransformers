@@ -1,6 +1,8 @@
 # ETRI KorBERT projects:)
 Let's use Korean BERT easily :)
 
+- [positional embedding](https://nbviewer.jupyter.org/gist/jinmang2/c2d41939ee9800b9d9d8d485059870cb)
+
 ### 개발 환경
 - 회사 서버
   - To be continued...
