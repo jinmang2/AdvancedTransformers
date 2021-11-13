@@ -1,6 +1,22 @@
 # Korean Transformers
 - Transformers에 관련된 개념들 구현 레포
 
+## 🤗 transformers에서 사용되는 특별한 기술들
+- gradient checkpoint
+- reversible residual connection
+- dynamic padding
+- chunk feed forward network
+- 3d, 4d multi-head scaled dot product attention
+- various positional embedding
+- various heads
+- porting script
+- generation mixin
+- parrallelism mixin
+- pushtohub mixin
+- how to make tokenization script?
+- trainer
+- various utils
+
 
 ## Reference
 
