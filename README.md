@@ -7,6 +7,7 @@
 - dynamic padding
 - chunk feed forward network
 - 3d, 4d multi-head scaled dot product attention
+- past key value
 - various positional embedding
 - various heads
 - porting script
