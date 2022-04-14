@@ -9,14 +9,6 @@ from torch import nn, einsum
 from einops import rearrange, repeat
 
 
-def flip_every_two(t):
-    t = rearrange(t, "b (n r) ... -> b n r ...", r=2)
-    # so we pay attention to the off-diagonal blocks in the attention matrix
-    t = torch.flip(t, dims=(2,))
-    t = rearrange(t, "b n r ... -> b (n r) ...")
-    return t
-
-
 class RotaryEmbedding(nn.Module):
     def __init__(self, theta: int, dim: int, learned_freq: bool):
         super().__init__()
