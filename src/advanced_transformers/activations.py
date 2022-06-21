@@ -163,12 +163,74 @@ class BloomGELUActivation(nn.Module):
             bloom_gelu_forward(x)
 
 
+# Copied from transformers.activations.SiLUActivation
+class SiLUActivation(nn.Module):
+    """
+    See Gaussian Error Linear Units (Hendrycks et al., https://arxiv.org/abs/1606.08415) where the SiLU (Sigmoid Linear
+    Unit) was originally introduced and coined, and see Sigmoid-Weighted Linear Units for Neural Network Function
+    Approximation in Reinforcement Learning (Elfwing et al., https://arxiv.org/abs/1702.03118) and Swish: a Self-Gated
+    Activation Function (Ramachandran et al., https://arxiv.org/abs/1710.05941v1) where the SiLU was experimented with
+    later.
+    """
+
+    def __init__(self):
+        super().__init__()
+        if version.parse(torch.__version__) < version.parse("1.7"):
+            self.act = self._silu_python
+        else:
+            self.act = nn.functional.silu
+
+    def _silu_python(self, input: Tensor) -> Tensor:
+        return input * torch.sigmoid(input)
+
+    def forward(self, input: Tensor) -> Tensor:
+        return self.act(input)
+
+
+# Copied from transformers.activations.MishActivation
+class MishActivation(nn.Module):
+    """
+    See Mish: A Self-Regularized Non-Monotonic Activation Function (Misra., https://arxiv.org/abs/1908.08681). Also
+    visit the official repository for the paper: https://github.com/digantamisra98/Mish
+    """
+
+    def __init__(self):
+        super().__init__()
+        if version.parse(torch.__version__) < version.parse("1.9"):
+            self.act = self._mish_python
+        else:
+            self.act = nn.functional.mish
+
+    def _mish_python(self, input: Tensor) -> Tensor:
+        return input * torch.tanh(nn.functional.softplus(input))
+
+    def forward(self, input: Tensor) -> Tensor:
+        return self.act(input)
+
+
+# Copied from transformers.activations.LinearActivation
+class LinearActivation(nn.Module):
+    """
+    Applies the linear activation function, i.e. forwarding input directly to output.
+    """
+
+    def forward(self, input: Tensor) -> Tensor:
+        return input
+
+
 ACT2FN = {
     "gelu": GELUActivation(),
     "gelu_10": ClippedGELUActivation(-10, 10),
     "gelu_fast": FastGELUActivation(),
     "gelu_new": NewGELUActivation(),
     "gelu_python": GELUActivation(use_gelu_python=True),
+    "linear": LinearActivation(),
+    "mish": MishActivation(),
     "quick_gelu": QuickGELUActivation(),
     "gelu_bloom": BloomGELUActivation(),
+    "relu": nn.ReLU(),
+    "sigmoid": nn.Sigmoid(),
+    "silu": SiLUActivation(),
+    "swish": SiLUActivation(),
+    "tanh": nn.Tanh(),
 }
