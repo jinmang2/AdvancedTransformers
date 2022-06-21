@@ -19,6 +19,13 @@ import torch
 from packaging import version
 from torch import Tensor, nn
 
+from .quant_modules import (
+    symmetric_linear_quantization_params,
+    SymmetricQuantFunction,
+    floor_ste,
+    FixedPointMul,
+)
+
 
 # Copied from transformers.activations.NewGELUActivation
 class NewGELUActivation(nn.Module):
@@ -163,6 +170,171 @@ class BloomGELUActivation(nn.Module):
             bloom_gelu_forward(x)
 
 
+# Inspired by transformers.models.ibert.quant_modules.IntGELU
+class IntGELU(nn.Module):
+    """
+    Quantized version of `torch.nn.GELU`. Adds quantization-specific arguments on top of `torch.nn.GELU`.
+    Args:
+        quant_mode (`bool`, *optional*, defaults to `False`):
+            Whether or not the layer is quantized.
+    """
+
+    def __init__(self, quant_mode=True):
+        super().__init__()
+        self.quant_mode = quant_mode
+
+        if not self.quant_mode:
+            self.activation_fn = nn.GELU()
+
+        self.k = 1.4142
+        self.const = 14  # dummy integer constant
+        self.coeff = [-0.2888, -1.769, 1]  # a(x+b)**2 + c
+        self.coeff[2] /= self.coeff[0]
+
+    def int_erf(self, x_int, scaling_factor):
+        b_int = torch.floor(self.coeff[1] / scaling_factor)
+        c_int = torch.floor(self.coeff[2] / scaling_factor**2)
+        sign = torch.sign(x_int)
+
+        abs_int = torch.min(torch.abs(x_int), -b_int)
+        y_int = sign * ((abs_int + b_int) ** 2 + c_int)
+        scaling_factor = scaling_factor**2 * self.coeff[0]
+
+        # avoid overflow
+        y_int = floor_ste.apply(y_int / 2**self.const)
+        scaling_factor = scaling_factor * 2**self.const
+
+        return y_int, scaling_factor
+
+    def forward(self, x, scaling_factor=None):
+        if not self.quant_mode:
+            return self.activation_fn(x), None
+
+        x_int = x / scaling_factor
+        sigmoid_int, sigmoid_scaling_factor = self.int_erf(x_int, scaling_factor / self.k)
+
+        shift_int = 1.0 // sigmoid_scaling_factor
+
+        x_int = x_int * (sigmoid_int + shift_int)
+        scaling_factor = scaling_factor * sigmoid_scaling_factor / 2
+
+        return x_int * scaling_factor, scaling_factor
+
+
+# Copied from transformers.models.ibert.quant_modules.QuantAct
+class QuantAct(nn.Module):
+    """
+    Quantizes the given activation.
+    Args:
+        activation_bit (`int`):
+            Bitwidth for the quantized activation.
+        act_range_momentum (`float`, *optional*, defaults to `0.95`):
+            Momentum for updating the activation quantization range.
+        per_channel (`bool`, *optional*, defaults to `False`):
+            Whether to or not use channel-wise quantization.
+        channel_len (`int`, *optional*):
+            Specify the channel length when set the *per_channel* True.
+        quant_mode (`bool`, *optional*, defaults to `False`):
+            Whether or not the layer is quantized.
+    """
+
+    def __init__(
+        self,
+        activation_bit,
+        act_range_momentum=0.95,
+        per_channel=False,
+        channel_len=None,
+        quant_mode=False
+    ):
+        super().__init__()
+
+        self.activation_bit = activation_bit
+        self.act_range_momentum = act_range_momentum
+        self.quant_mode = quant_mode
+        self.per_channel = per_channel
+        self.percentile = False
+        self.act_function = SymmetricQuantFunction.apply
+
+        if not self.per_channel:
+            self.register_buffer("x_min", torch.zeros(1))
+            self.register_buffer("x_max", torch.zeros(1))
+            self.register_buffer("act_scaling_factor", torch.zeros(1))
+            self.x_min -= 1e-5
+            self.x_max += 1e-5
+        else:
+            raise NotImplementedError("per-channel mode is not currently supported for activation.")
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}(activation_bit={self.activation_bit}, "
+            f"quant_mode: {self.quant_mode}, Act_min: {self.x_min.item():.2f}, "
+            f"Act_max: {self.x_max.item():.2f})"
+        )
+
+    def forward(
+        self,
+        x,
+        pre_act_scaling_factor=None,
+        identity=None,
+        identity_scaling_factor=None,
+        specified_min=None,
+        specified_max=None,
+    ):
+
+        x_act = x if identity is None else identity + x
+        # collect running stats if training
+        if self.training:
+            assert not self.percentile, "percentile mode is not currently supported for activation."
+            assert not self.per_channel, "per-channel mode is not currently supported for activation."
+            x_min = x_act.data.min()
+            x_max = x_act.data.max()
+
+            assert (
+                x_max.isnan().sum() == 0 and x_min.isnan().sum() == 0
+            ), "NaN detected when computing min/max of the activation"
+
+            # Initialization
+            if self.x_min.min() > -1.1e-5 and self.x_max.max() < 1.1e-5:
+                self.x_min = self.x_min + x_min
+                self.x_max = self.x_max + x_max
+
+            # exponential moving average (EMA)
+            # use momentum to prevent the quantized values change greatly every iteration
+            elif self.act_range_momentum == -1:
+                self.x_min = torch.min(self.x_min, x_min)
+                self.x_max = torch.max(self.x_max, x_max)
+            else:
+                self.x_min = self.x_min * self.act_range_momentum + x_min * (1 - self.act_range_momentum)
+                self.x_max = self.x_max * self.act_range_momentum + x_max * (1 - self.act_range_momentum)
+
+        if not self.quant_mode:
+            return x_act, None
+
+        x_min = self.x_min if specified_min is None else specified_min
+        x_max = self.x_max if specified_max is None else specified_max
+
+        self.act_scaling_factor = symmetric_linear_quantization_params(
+            self.activation_bit, x_min, x_max, per_channel=self.per_channel
+        )
+
+        if pre_act_scaling_factor is None:
+            # this is for the input quantization
+            quant_act_int = self.act_function(x, self.activation_bit, self.percentile, self.act_scaling_factor)
+        else:
+            quant_act_int = FixedPointMul.apply(
+                x,
+                pre_act_scaling_factor,
+                self.activation_bit,
+                self.act_scaling_factor,
+                identity,
+                identity_scaling_factor,
+            )
+
+        correct_output_scale = self.act_scaling_factor.view(-1)
+
+        return quant_act_int * correct_output_scale, self.act_scaling_factor
+
+
 # Copied from transformers.activations.SiLUActivation
 class SiLUActivation(nn.Module):
     """
@@ -233,4 +405,12 @@ ACT2FN = {
     "silu": SiLUActivation(),
     "swish": SiLUActivation(),
     "tanh": nn.Tanh(),
+    "gelu_int": IntGELU(quant_mode=False),
+    "gelu_int_quant": IntGELU(),
+    "quant_act_8": QuantAct(activation_bit=8),
+    "quant_act_8_quant": QuantAct(activation_bit=8, quant_mode=True),
+    "quant_act_16": QuantAct(activation_bit=16),
+    "quant_act_16_quant": QuantAct(activation_bit=16, quant_mode=True),
+    "quant_act_22": QuantAct(activation_bit=22),
+    "quant_act_22_quant": QuantAct(activation_bit=22, quant_mode=True),
 }
